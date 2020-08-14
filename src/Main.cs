@@ -97,6 +97,11 @@ namespace AudicaModding
             {
                 customTempoRampEndSpeed = 1.0f;
             }
+
+            if (customSongSpeed < 1.0f)
+            {
+                customSongSpeed = 1.0f;
+            }
         }
 
         private static void SaveConfig()
