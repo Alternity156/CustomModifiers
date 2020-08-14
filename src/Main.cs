@@ -3,6 +3,7 @@ using UnityEngine;
 using Harmony;
 using TMPro;
 using System;
+using System.Collections;
 
 namespace AudicaModding
 {
@@ -13,7 +14,7 @@ namespace AudicaModding
             public const string Name = "CustomModifiers";  // Name of the Mod.  (MUST BE SET)
             public const string Author = "Alternity"; // Author of the Mod.  (Set as null if none)
             public const string Company = null; // Company that made the Mod.  (Set as null if none)
-            public const string Version = "0.1.0"; // Version of the Mod.  (MUST BE SET)
+            public const string Version = "0.2.0"; // Version of the Mod.  (MUST BE SET)
             public const string DownloadLink = null; // Download Link for the Mod.  (Set as null if none)
         }
 
@@ -30,12 +31,14 @@ namespace AudicaModding
         public static float customExtraParticlesScale = 1.0f;
         public static float customTargetSpeed = 1.2f;
         public static float customPsychedeliaSpeed = 1.0f;
+        public static float customSongSpeed = 1.2f;
 
         public static bool AimAssistEnabled = false;
         public static bool TempoRampEnabled = false;
         public static bool ExtraParticlesEnabled = false;
         public static bool FastTargetsEnabled = false;
         public static bool PsychedeliaEnabled = false;
+        public static bool FasterSongEnabled = false;
 
         public static string selectedSong;
         public static SongCues.Cue[] songCues;
@@ -44,6 +47,9 @@ namespace AudicaModding
         public static float psychedeliaSpeed = 1.0f;
         public static float forcedPsychedeliaPhase = 0.0f;
         public static float defaultPsychedeliaPhaseSeconds = 14.28f;
+
+        public static int TempoIncrementCount = 0;
+        public static int TempoIncrementTotalTargets = 0;
 
         public static OptionsMenuButton testButton = null;
 
@@ -54,6 +60,7 @@ namespace AudicaModding
             MelonPrefs.RegisterFloat("CustomModifiers", "ExtraParticlesScale", 1.0f);
             MelonPrefs.RegisterFloat("CustomModifiers", "TargetSpeed", 1.2f);
             MelonPrefs.RegisterFloat("CustomModifiers", "PsychedeliaSpeed", 1.0f);
+            MelonPrefs.RegisterFloat("CustomModifiers", "SongSpeed", 1.2f);
         }
 
         private void LoadConfig()
@@ -63,6 +70,19 @@ namespace AudicaModding
             customExtraParticlesScale = MelonPrefs.GetFloat("CustomModifiers", "ExtraParticlesScale");
             customTargetSpeed = MelonPrefs.GetFloat("CustomModifiers", "TargetSpeed");
             customPsychedeliaSpeed = MelonPrefs.GetFloat("CustomModifiers", "PsychedeliaSpeed");
+
+            //Support from 0.1.0 to 0.2.0
+
+            if (!MelonPrefs.HasKey("CustomModifiers", "SongSpeed"))
+            {
+                MelonPrefs.RegisterFloat("CustomModifiers", "SongSpeed", 1.2f);
+            }
+            else
+            {
+                customSongSpeed = MelonPrefs.GetFloat("CustomModifiers", "SongSpeed");
+            }
+
+            //End of support
 
             if (customAimAssist > 1.0f)
             {
@@ -86,6 +106,7 @@ namespace AudicaModding
             MelonPrefs.SetFloat("CustomModifiers", "ExtraParticlesScale", customExtraParticlesScale);
             MelonPrefs.SetFloat("CustomModifiers", "TargetSpeed", customTargetSpeed);
             MelonPrefs.SetFloat("CustomModifiers", "PsychedeliaSpeed", customPsychedeliaSpeed);
+            MelonPrefs.SetFloat("CustomModifiers", "SongSpeed", customSongSpeed);
         }
 
         public static void SpawnText(string text)
@@ -116,6 +137,37 @@ namespace AudicaModding
             }
         }
 
+        public static void GetCues()
+        {
+            songCues = SongCues.I.GetCues();
+            if (TempoRampEnabled)
+            {
+                TempoIncrementCount = 0;
+                for (int i = 0; i < songCues.Length; i++)
+                {
+                    MelonLogger.Log("Hi");
+                    if (songCues[i].behavior == Target.TargetBehavior.ChainStart ||
+                        songCues[i].behavior == Target.TargetBehavior.Hold ||
+                        songCues[i].behavior == Target.TargetBehavior.Horizontal ||
+                        songCues[i].behavior == Target.TargetBehavior.Melee ||
+                        songCues[i].behavior == Target.TargetBehavior.Standard ||
+                        songCues[i].behavior == Target.TargetBehavior.Vertical)
+                    {
+                        TempoIncrementTotalTargets += 1;
+                    }
+                }
+            }
+            if (ExtraParticlesEnabled)
+            {
+                SetParticleScale(customExtraParticlesScale);
+            }
+            if (FasterSongEnabled)
+            {
+                SetSongSpeed(customSongSpeed);
+            }
+            
+        }
+
         public static void SetModifiersBefore()
         {
             AimAssistEnabled = GameplayModifiers.I.IsModifierActive(GameplayModifiers.Modifier.ReducedAimAssist);
@@ -123,6 +175,13 @@ namespace AudicaModding
             ExtraParticlesEnabled = GameplayModifiers.I.IsModifierActive(GameplayModifiers.Modifier.MoreParticles);
             FastTargetsEnabled = GameplayModifiers.I.IsModifierActive(GameplayModifiers.Modifier.FastTargets);
             PsychedeliaEnabled = GameplayModifiers.I.IsModifierActive(GameplayModifiers.Modifier.Psychedelia);
+            FasterSongEnabled = GameplayModifiers.I.IsModifierActive(GameplayModifiers.Modifier.SpeedUp);
+
+            if (TempoRampEnabled)
+            {
+                GameplayModifiers.I.DeactivateModifier(GameplayModifiers.Modifier.TempoIncrement);
+                
+            }
 
             if (AimAssistEnabled)
             {
@@ -132,7 +191,7 @@ namespace AudicaModding
 
             if (ExtraParticlesEnabled)
             {
-                SetParticleScale(customExtraParticlesScale);
+                GameplayModifiers.I.DeactivateModifier(GameplayModifiers.Modifier.MoreParticles);
             }
 
             if (FastTargetsEnabled)
@@ -145,54 +204,53 @@ namespace AudicaModding
             {
                 psychedeliaSpeed = customPsychedeliaSpeed;
             }
+
+            if (FasterSongEnabled)
+            {
+                GameplayModifiers.I.DeactivateModifier(GameplayModifiers.Modifier.SpeedUp);
+            }
         }
 
         public static void SetModifiersAfter()
         {
+            if (TempoRampEnabled)
+            {
+                GameplayModifiers.I.ActivateModifier(GameplayModifiers.Modifier.TempoIncrement);
+                TempoIncrementTotalTargets = 0;
+            }
+
             if (AimAssistEnabled)
             {
                 SetAimAssist(oldAimAssist);
+            }
+
+            if (ExtraParticlesEnabled)
+            {
+                GameplayModifiers.I.ActivateModifier(GameplayModifiers.Modifier.MoreParticles);
             }
 
             if (FastTargetsEnabled)
             {
                 SetTargetSpeed(oldTargetSpeed);
             }
-        }
 
-        public static void CreateButtons()
-        {
-            testButton = UnityEngine.Object.Instantiate(launchButton);
-            testButton.transform.localScale = launchPanelButtonScale;
-            UnityEngine.Object.Destroy(testButton.transform.root.GetComponentInChildren<Localizer>());
-
-            TextMeshPro grindButtontext = testButton.transform.root.GetComponentInChildren<TextMeshPro>();
-            grindButtontext.text = grindMode ? "GrindMode ON" : "GrindMode OFF";
-
-            testButton.SelectedAction = null;
-            testButton.IsChecked = null;
-            testButton.SelectedAction = new Action(() =>
+            if (FasterSongEnabled)
             {
-                grindMode = !grindMode;
-                string txt = grindMode ? "ON" : "OFF";
-                allowedMissCountButton.gameObject.SetActive(grindMode && !highscoreMode);
-                testButton.label.text = "Grind Mode " + txt;
-                if (toggleButtonGrind is OptionsMenuButton) toggleButtonGrind.label.text = txt;
-            });
-            testButton.transform.position = new Vector3(0, 13.2f, 24.19168f);
-            grindButtonCreated = true;
+                GameplayModifiers.I.ActivateModifier(GameplayModifiers.Modifier.SpeedUp);
+            }
         }
 
-        public static void TempoRamp(GameplayModifiers gameplayModifiers)
+
+
+        public static void TempoRamp(Target target)
         {
-            ++gameplayModifiers.mTempoIncrementCount;
-            SetSongSpeed(Mathf.Lerp(1, customTempoRampEndSpeed, (float)gameplayModifiers.mTempoIncrementCount / gameplayModifiers.mTempoIncrementTotalTargets));
+            ++TempoIncrementCount;
+            SetSongSpeed(Mathf.Lerp(1, customTempoRampEndSpeed, (float)TempoIncrementCount / TempoIncrementTotalTargets));
         }
 
         public override void OnApplicationStart()
         {
             HarmonyInstance instance = HarmonyInstance.Create("AudicaMod");
-            Hooks.ApplyHooks(instance);
         }
 
         public override void OnLevelWasLoaded(int level)

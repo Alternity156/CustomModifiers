@@ -1,21 +1,15 @@
 ﻿using Harmony;
-using Steamworks;
 using System;
-using System.Reflection;
+using MelonLoader;
 
 namespace AudicaModding
 {
     internal static class Hooks
     {
-        public static void ApplyHooks(HarmonyInstance instance)
-        {
-            instance.PatchAll(Assembly.GetExecutingAssembly());
-        }
-
         [HarmonyPatch(typeof(MenuState), "SetState", new Type[] { typeof(MenuState.State) })]
         private static class PatchSetState
         {
-            private static void Postfix(MenuState __instance, MenuState.State state)
+            private static void Postfix(MenuState __instance, ref MenuState.State state)
             {
                 AudicaMod.oldMenuState = AudicaMod.menuState;
                 AudicaMod.menuState = state;
@@ -39,15 +33,19 @@ namespace AudicaModding
             }
         }
 
-        [HarmonyPatch(typeof(GameplayModifiers), "OnTargetHit")]
+        [HarmonyPatch(typeof(AudioDriver), "StartPlaying")]
+        private static class PatchPlay
+        {
+            private static void Postfix(AudioDriver __instance)
+            {
+                AudicaMod.GetCues();
+            }
+        }
+
+        [HarmonyPatch(typeof(Target), "OnHit")]
         private static class PatchOnTargetHit
         {
-            private static bool Prefix(GameplayModifiers __instance)
-            {
-                return false;
-            }
-
-            private static void Postfix(GameplayModifiers __instance)
+            private static void Postfix(Target __instance)
             {
                 if (AudicaMod.TempoRampEnabled)
                 {
