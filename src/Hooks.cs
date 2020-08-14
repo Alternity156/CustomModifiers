@@ -42,19 +42,16 @@ namespace AudicaModding
             }
         }
 
-        [HarmonyPatch(typeof(Target), "OnHit")]
-        private static class PatchOnTargetHit
+        [HarmonyPatch(typeof(ScoreKeeper), "OnSuccess")]
+        private static class PatchOnSuccess
         {
-            private static void Postfix(Target __instance)
+            private static void Postfix(ScoreKeeper __instance)
             {
                 if (AudicaMod.TempoRampEnabled)
                 {
-                    AudicaMod.TempoRamp(__instance);
+                    AudicaMod.TempoRamp();
                 }
             }
         }
-
-
-
     }
 }
